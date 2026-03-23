@@ -1,9 +1,3 @@
-"""
-Song database: wraps the custom hash table to index and store fingerprints.
-
-Refer to GUIDE.md, Milestone 3 for detailed instructions.
-"""
-
 import json
 import os
 
@@ -65,8 +59,23 @@ class SongDatabase:
         Returns:
             The assigned song_id (int)
         """
-        # TODO: Implement index_song
-        raise NotImplementedError("Implement index_song()")
+        audio, sr = load_audio(filepath)
+        fingerprints = fingerprint_audio(audio)
+        song_id = self._next_id
+        self._next_id += 1
+
+        if song_name is None:
+            song_name = os.path.splitert(os.path.basename(filepath))[0]
+
+            self.song_names[song_id] = song_name
+
+        for hash_val, time_offset in fingerprints:
+            self.table.insert(hash_val, (song_id, time_offset))
+
+        print(f"indexed song_id {song_id} - {song_name}")
+
+        return song_id
+
 
     def index_directory(self, directory):
         """
@@ -81,8 +90,14 @@ class SongDatabase:
         Args:
             directory: Path to a directory containing .wav files
         """
-        # TODO: Implement index_directory
-        raise NotImplementedError("Implement index_directory()")
+        files = os.listdir(directory).sort()
+        sorted_files = sorted(files)
+
+        for file in sorted_files:
+            if file.endswith(".wav"):
+                self.index_song(file)
+            
+        
 
     # ------------------------------------------------------------------ #
     # Serialization — YOU IMPLEMENT THESE
@@ -120,7 +135,12 @@ class SongDatabase:
             filepath: Where to save the JSON file (e.g., "data/database.json")
         """
         # TODO: Implement save
-        raise NotImplementedError("Implement save()")
+        implement_save_stats = {
+            "filepath": filepath,
+            "num_songs": None,  # replace with actual count
+            "num_entries": None  # replace with actual count
+        }
+        print("save stats:", implement_save_stats)
 
     @classmethod
     def load(cls, filepath):
@@ -148,4 +168,9 @@ class SongDatabase:
             A new SongDatabase instance with all data restored
         """
         # TODO: Implement load
-        raise NotImplementedError("Implement load()")
+        load_stats = {
+            "filepath": filepath,
+            "num_songs": None,  # replace with actual count
+            "num_entries": None  # replace with actual count
+        }
+        print("load stats:", load_stats)

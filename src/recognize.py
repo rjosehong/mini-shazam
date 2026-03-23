@@ -11,80 +11,39 @@ from src.utils import highpass_filter
 
 
 def recognize(audio, sample_rate, database):
-    """
-    Fingerprint an audio clip and match it against the database.
+    fingerprints = fingerprint_audio(audio, sample_rate)
+    if not fingerprints:
+        return None, 0, {}
 
-    This is where the "second hash table" insight comes in: the offset
-    histogram is conceptually another hash table mapping
-    (time_delta -> count).
+    # Collect offset deltas grouped by song
+    matches = {}  # song_id → list of deltas
+    for hash_val, t_clip in fingerprints:
+        hits = database.table.lookup(hash_val)
+        for song_id, t_song in hits:
+            delta = t_song - t_clip
+            matches.setdefault(song_id, []).append(delta)
 
-    Algorithm:
-      1. Fingerprint the audio clip to get a list of (hash_value, t_clip)
-      2. If no fingerprints, return (None, 0, {})
-      3. For each fingerprint (hash_val, t_clip):
-           - Look up hash_val in database.table to get all hits
-           - Each hit is (song_id, t_song)
-           - Compute delta = t_song - t_clip
-           - Group deltas by song_id:
-               matches[song_id].append(delta)
-      4. If no matches, return (None, 0, {})
-      5. For each song_id in matches:
-           - Build an offset histogram: count how many times each delta appears
-             (use a plain dict: {delta: count})
-           - The peak count = max value in the histogram
-           - Store: all_scores[song_name] = peak_count
-           - Track the best song (highest peak_count)
-      6. Return (best_song_name, best_score, all_scores)
+    if not matches:
+        return None, 0, {}
 
-    WHY does this work?
-      If the clip is from song X starting at second 30, then every matching
-      fingerprint will have roughly the same delta: (t_song - t_clip) will
-      be ~constant. Random false matches from other songs will have random
-      deltas that don't align. So the correct song gets a tall spike in
-      its histogram while wrong songs get flat noise.
+    # For each song, build offset histogram and find peak count
+    best_song_id = None
+    best_count = 0
+    all_scores = {}
 
-    Args:
-        audio: 1D numpy array of audio samples
-        sample_rate: sample rate of the audio
-        database: a SongDatabase instance with indexed songs
+    for song_id, deltas in matches.items():
+        histogram = {}
+        for d in deltas:
+            histogram[d] = histogram.get(d, 0) + 1
+        peak_count = max(histogram.values())
+        song_name = database.get_song_name(song_id)
+        all_scores[song_name] = peak_count
+        if peak_count > best_count:
+            best_count = peak_count
+            best_song_id = song_id
 
-    Returns:
-        (best_song_name, best_score, all_scores)
-        - best_song_name: name of the best matching song (or None)
-        - best_score: peak histogram count for the best match
-        - all_scores: dict {song_name: peak_histogram_count} for all candidates
-    """
-    # TODO: Implement the recognition algorithm
-    #
-    # Step 1: Fingerprint the clip
-    #
-    # Step 2: Collect all hash hits, grouped by song_id
-    #   matches = {}  # song_id -> list of (t_song - t_clip)
-    #   for hash_val, t_clip in fingerprints:
-    #       hits = database.table.lookup(hash_val)
-    #       for song_id, t_song in hits:
-    #           delta = t_song - t_clip
-    #           matches.setdefault(song_id, []).append(delta)
-    #
-    # Step 3: For each song, build offset histogram and find peak
-    #   best_song_id = None
-    #   best_count = 0
-    #   all_scores = {}
-    #   for song_id, deltas in matches.items():
-    #       histogram = {}
-    #       for d in deltas:
-    #           histogram[d] = histogram.get(d, 0) + 1
-    #       peak_count = max(histogram.values())
-    #       song_name = database.get_song_name(song_id)
-    #       all_scores[song_name] = peak_count
-    #       if peak_count > best_count:
-    #           best_count = peak_count
-    #           best_song_id = song_id
-    #
-    # Step 4: Return results
-
-    raise NotImplementedError("Implement recognize()")
-
+    best_name = database.get_song_name(best_song_id) if best_song_id is not None else None
+    return best_name, best_count, all_scores
 
 def record_and_recognize(database, duration=5, sample_rate=SAMPLE_RATE):
     """

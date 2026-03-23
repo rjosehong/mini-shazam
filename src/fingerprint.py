@@ -138,8 +138,22 @@ def find_peaks(spec, neighborhood_freq=PEAK_NEIGHBORHOOD_FREQ,
     #     - Find the index of the maximum value within that slice (np.argmax)
     #     - Convert back to a global frequency index: f_global = lo + f_local
     #     - If spec[f_global, t] > threshold, add (t, f_global) to band_peaks
+    
+    for t in range(n_time):
+        for lo, hi in freq_bands:
+            hi = min(hi, n_freq)  # Clamp hi to n_freq
+            if lo >= n_freq:       # Skip if band starts beyond spectrogram
+                continue
+            band_slice = spec[lo:hi, t]
+            f_local = np.argmax(band_slice)
+            f_global = lo + f_local
+            if spec[f_global, t] > threshold:
+                band_peaks.add((t, f_global))
 
-    raise NotImplementedError("Implement Step 1 of find_peaks()")
+    find_peaks_stats = {
+        "threshold": threshold,
+        "band_peaks": len(band_peaks)
+    }
 
     # -------------------------------------------------------------- #
     # STEP 2: Apply local-max filter to remove redundant peaks
@@ -154,8 +168,16 @@ def find_peaks(spec, neighborhood_freq=PEAK_NEIGHBORHOOD_FREQ,
     #    (Note: spec is indexed as [freq, time] but peaks are stored as (time, freq))
     #
     # 3. Return the filtered peaks as a list of (int(t), int(f)) tuples
-
-    raise NotImplementedError("Implement Step 2 of find_peaks()")
+    
+    local_max = maximum_filter(spec, size=(neighborhood_freq, neighborhood_time))
+    filtered_peaks = []
+    for t, f in band_peaks:
+        if spec[f, t] == local_max[f, t]:
+            filtered_peaks.append((int(t), int(f)))
+    
+    find_peaks_stats["final_peaks"] = len(filtered_peaks)
+    print("find_peaks stats:", find_peaks_stats)
+    return filtered_peaks
 
 
 # ------------------------------------------------------------------ #
@@ -203,9 +225,8 @@ def hash_peak_pair(f1, f2, dt):
     """
     # TODO: Implement the bit-packing formula
     #
-    # h = (f1 << (FREQ_BITS + DELTA_BITS)) | (f2 << DELTA_BITS) | dt
-
-    raise NotImplementedError("Implement hash_peak_pair()")
+    h = (f1 << (FREQ_BITS + DELTA_BITS)) | (f2 << DELTA_BITS) | dt
+    return h
 
 
 # ------------------------------------------------------------------ #
@@ -263,8 +284,29 @@ def generate_fingerprints(peaks, fan_out=FAN_OUT,
     #     Append (h, t1) to fingerprints
     #     paired += 1
     #     if paired >= fan_out: break
+    
+    for i in range(len(peaks)):
+        t1, f1 = peaks[i]
+        paired = 0
+        for j in range(i + 1, len(peaks)):
+            t2, f2 = peaks[j]
+            dt = t2 - t1
+            if dt < zone_start:
+                continue
+            if dt > zone_end:
+                break
+            h = hash_peak_pair(f1, f2, dt)
+            fingerprints.append((h, t1))
+            paired += 1
+            if paired >= fan_out:
+                break
 
-    raise NotImplementedError("Implement generate_fingerprints()")
+    generate_fingerprints_stats = {
+        "total_peaks": len(peaks),
+        "total_fingerprints": len(fingerprints)
+    }
+    print("generate_fingerprints stats:", generate_fingerprints_stats)
+
 
     return fingerprints
 
